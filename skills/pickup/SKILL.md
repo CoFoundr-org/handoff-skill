@@ -3,7 +3,11 @@ name: pickup
 metadata:
   version: 1.0.0
 description: Resume a Claude Code session from the latest epic handoff. Reads docs/handoff/<epic>.md, briefs the agent on epic progress + next-up feature, then waits for "go".
-when_to_use: Trigger when the user says "pickup", "/pickup", "resume", "where were we", "pick up where we left off", or "continue from yesterday". Also offer proactively at session start if docs/handoff/ contains any non-archived files. Note: bare /resume is reserved by Claude Code; this is the namespaced equivalent.
+when_to_use: >-
+  Trigger when the user says "pickup", "/pickup", "resume", "where were we",
+  "pick up where we left off", or "continue from yesterday". Also offer
+  proactively at session start if docs/handoff/ contains any non-archived files.
+  Note: bare /resume is reserved by Claude Code; this is the namespaced equivalent.
 ---
 
 # /cofoundr:pickup

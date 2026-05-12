@@ -1,4 +1,7 @@
 ---
+name: handoff
+metadata:
+  version: 1.0.0
 description: Save Claude Code session state to a per-epic handoff doc. Writes or updates docs/handoff/<epic-slug>.md so the next session can pick up without context loss. Pass --archive when the whole epic is shipped.
 when_to_use: Trigger when the user says "handoff", "/handoff", "wrap up", "let's wrap up", "let's stop here", "let's stop for today", "save state", "I'm going to /clear", "I want to clear", or "make me a handoff doc". Use --archive only when the whole epic is done.
 argument-hint: [--archive]

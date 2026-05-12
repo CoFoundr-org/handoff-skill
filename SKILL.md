@@ -1,80 +1,81 @@
 ---
 name: cofoundr-handoff
-description: Persists Claude Code session state across multi-session feature work. Provides two paired flows — /handoff writes or updates `docs/handoff/<slug>.md` at session end (one file per feature, accumulates across sessions, never overwrites), and /pickup reads the latest handoff at session start and briefs the agent on where you left off. Trigger when the user says "handoff", "/handoff", "wrap up", "let's stop here", "let's stop for today", "save state", "I'm going to /clear", "make me a handoff doc", "pickup", "/pickup", "resume", "where were we", "pick up where we left off", or "continue from yesterday". Note: avoid claiming the literal `/resume` slash — Claude Code reserves it for session resumption.
+description: Persists Claude Code session state across multi-feature epics. Provides two paired flows — /handoff writes or updates `docs/handoff/<epic-slug>.md` at session end (one file per epic, accumulates as you complete features inside it, never overwrites), and /pickup reads the latest handoff at session start and briefs the agent on epic progress + next-up feature. Use /handoff --archive only when the whole epic is done. Trigger when the user says "handoff", "/handoff", "wrap up", "let's stop here", "let's stop for today", "save state", "I'm going to /clear", "make me a handoff doc", "pickup", "/pickup", "resume", "where were we", "pick up where we left off", or "continue from yesterday". Note: avoid claiming the literal `/resume` slash — Claude Code reserves it for session resumption.
 ---
 
 # CoFoundr Handoff Skill
 
-Two paired commands that fix the most common failure mode in multi-session
-AI coding: re-explaining yourself every time you `/clear`. Designed for the
-common case — one feature, many sessions, accumulating state.
+Two paired commands that fix the most common failure mode in multi-session AI coding: re-explaining yourself every time you `/clear`. Designed for the common case — one **epic** of related work, many features, many sessions, accumulating state.
 
 ## When to Use
 
-- A feature is taking more than one Claude Code session to ship (most do — typical is 3–10 sessions).
+- An epic of work (e.g. a milestone, a rewrite, a launch push) is going to span several sessions and several features.
 - The user is winding down a session and wants the next one to pick up without context loss.
-- The user is starting a session and wants the agent briefed on where they left off.
+- The user is starting a session and wants the agent briefed on epic progress + what's next.
+- A feature inside the epic just completed and the user wants to log it before moving on.
 - Context is degrading (output quality drops well before the window fills) and a `/clear` is imminent.
 
 ## When NOT to Use
 
-- Single-session work that ships in one sitting — handoff overhead isn't worth it.
-- Quick Q&A, code review, or debugging conversations not tied to a feature.
+- A truly one-off task that ships in a single session — handoff overhead isn't worth it.
+- Quick Q&A, code review, or debugging conversations not tied to an epic.
 - Mid-task within an active session — `/handoff` is for stopping points, not check-ins.
-- The user already has a handoff doc open and just wants you to read it — use Read directly instead of running `/resume`.
+- The user already has a handoff doc open and just wants you to read it — use Read directly instead of running `/pickup`.
 - No `docs/` directory and the user explicitly wants nothing written to disk.
 
 ## Design principle
 
-**One file per feature. Accumulates across sessions. Never overwrites.**
+**One file per epic. Features accumulate inside it. Never overwrites. Archive only when the whole epic is done.**
 
-A feature usually takes 3-10 working sessions to ship. Each session ends with
-`/handoff` and starts with `/resume`. The handoff file (`docs/handoff/<slug>.md`)
-is the same file across all those sessions — it grows, it doesn't get replaced.
-"Decisions made", "Files touched", "Tech debt", and "Gotchas" are append-only.
-"Current state" and "Next 3 tasks" overwrite. "Session log" appends.
+An epic is a coherent body of work that spans multiple sessions and multiple features (e.g. "funnel rewire", "billing v2", "auth migration"). The handoff file (`docs/handoff/<epic-slug>.md`) is the same file across all those sessions — it grows, it doesn't get replaced.
 
-When the feature ships, `/handoff --ship` moves the file to
-`docs/handoff/shipped/<slug>.md` so it's archived but not in the active list.
+Inside an epic, you'll complete one feature at a time. When a feature is done, you log it into the epic's handoff and move to the next. The epic's handoff file is the running history of the whole campaign.
+
+Section semantics:
+- **Append-only:** `Features completed`, `Session log`, `Decisions made`, `Files touched`, `Tech debt`, `Gotchas`
+- **Overwrite each handoff:** `Current state`, `Features remaining`, `Next 3 priorities`, `Last updated`
+- **`Status` field:** `in-progress` (default), `blocked` (something needs user input), or `archiving` (epic is done, ready for `/handoff --archive`)
+
+When the whole epic is done, `/handoff --archive` moves the file to `docs/handoff/archived/<epic-slug>.md` so it's preserved but out of the active list.
 
 ## When to invoke `/handoff`
 
 Trigger on any of:
-- "handoff"
 - "/handoff"
+- "handoff"
 - "wrap up" / "let's wrap up"
 - "let's stop here" / "let's stop for today"
 - "save state"
 - "I'm going to /clear" / "I want to clear"
 - "make me a handoff doc"
 
+If the user has just finished a feature inside an epic (not the whole epic), proceed as a normal handoff — log the completed feature, refresh state, do not archive.
+
 ## What `/handoff` does
 
-1. **Determine the current feature slug.**
-   - First try to infer from the conversation (what feature have we been
-     working on?).
-   - If unclear, ask one short question: "What feature should I tag this
-     handoff under? (e.g. `billing-checkout`, `oauth-flow`, `dashboard-v2`)"
+1. **Determine the current epic slug.**
+   - First try to infer from the conversation. The epic name is usually broader than the feature you just worked on (e.g. if you shipped "handoff-skill-spinout", the epic is likely "funnel-rewire" or whatever broader campaign it's part of). Check `.claude/tasks/` for an active multi-feature task doc — its slug is a strong hint.
+   - If unclear, ask one short question: "What epic should this handoff live under? (e.g. `funnel-rewire`, `billing-v2`, `auth-migration`). Use the broader campaign, not the specific feature you just finished."
    - Slugify: lowercase, hyphens, no spaces, no extension.
 
-2. **Check if `docs/handoff/<slug>.md` already exists.**
-   - If yes → this is a continuing feature. Update it (see "Update flow").
-   - If no → this is a new feature. Create it (see "Create flow").
+2. **Check if `docs/handoff/<epic-slug>.md` already exists.**
+   - If yes → continuing epic. Update it (see "Update flow").
+   - If no → new epic. Create it (see "Create flow").
 
-3. **Output a 4-line summary to the user:**
-   - "Handoff <updated|created>: docs/handoff/<slug>.md"
-   - "Sessions: <count> · Status: <in-progress|blocked|shipping>"
-   - "Next 3 tasks: <comma list>"
-   - "Run `/clear` then `/pickup` to continue in a fresh session."
+3. **Identify any feature just completed.** If the conversation makes clear a feature inside the epic just shipped, log it under `Features completed`. If not, skip that section's append.
 
-### Create flow (first session on a feature)
+4. **Output a 4-line summary to the user:**
+   - "Handoff <updated|created>: docs/handoff/<epic-slug>.md"
+   - "Sessions: <count> · Status: <in-progress|blocked|archiving> · Features done: <n>/<total>"
+   - "Next priority: <#1 from Next 3 priorities>"
+   - "Run `/clear` then `/pickup` to continue in a fresh session. (Or `/handoff --archive` if the whole epic is done.)"
 
-Write `docs/handoff/<slug>.md` using the template below. Replace every
-`<placeholder>` with concrete content from the actual session — no
-brackets should remain in the output.
+### Create flow (first session on an epic)
+
+Write `docs/handoff/<epic-slug>.md` using the template below. Replace every `<placeholder>` with concrete content — no brackets should remain in the output.
 
 ```markdown
-# <feature name>
+# <epic name>
 
 _Status: in-progress_
 _Started: <YYYY-MM-DD>_
@@ -82,14 +83,23 @@ _Last updated: <YYYY-MM-DD HH:MM>_
 
 ## Current state
 
-<2-3 sentences. What's working right now. What a user can do.
+<2-3 sentences. Where the epic is right now. What's shipped. What's actively being worked on.
 This section gets overwritten every handoff.>
 
-## Next 3 tasks (priority order)
+## Features completed (in this epic)
 
-1. <task> — success criterion: <how we'll know it's done>
-2. <task> — success criterion: <how we'll know it's done>
-3. <task> — success criterion: <how we'll know it's done>
+- <YYYY-MM-DD> — <feature name> — <one-line outcome / what shipped>
+
+## Features remaining (priority order)
+
+- [ ] <feature name> — <one-line scope, success criterion>
+- [ ] <feature name> — <one-line scope, success criterion>
+
+## Next 3 priorities (across features)
+
+1. <task or feature> — success criterion: <how we'll know it's done>
+2. <task or feature> — success criterion: <how we'll know it's done>
+3. <task or feature> — success criterion: <how we'll know it's done>
 
 ## Open questions
 
@@ -114,58 +124,63 @@ Empty section "_(none)_" if there aren't any.>
 
 ## Gotchas
 
-<weird things only learned by hitting them. Env vars. Race conditions.
-Library quirks. Empty if none yet.>
+<weird things only learned by hitting them. Env vars. Race conditions. Library quirks. Empty if none yet.>
 ```
 
-### Update flow (continuing feature)
+### Update flow (continuing epic)
 
 When the file already exists:
 
 1. **Read the existing file.** Parse its sections.
 
 2. **Overwrite these sections** with this session's view:
-   - `Current state` — replace entirely with current status
-   - `Next 3 tasks` — refresh with what's now next (reorder, drop
-     completed items, add new ones)
+   - `Current state` — replace entirely with current epic status
+   - `Features remaining` — refresh (reorder, drop completed ones, add new ones)
+   - `Next 3 priorities` — refresh based on what's now next
    - `Last updated` — set to now
 
 3. **Append to these sections** (never overwrite, never drop):
-   - `Session log` — add a new bullet at the bottom: `<timestamp> — <summary>`
-   - `Decisions made` — add any decisions made this session that aren't
-     already listed (deduplicate by string match)
+   - `Features completed` — if a feature shipped this session, add it as a dated bullet
+   - `Session log` — add a new bullet: `<timestamp> — <summary>`
+   - `Decisions made` — add any new decisions (deduplicate by string match)
    - `Files touched` — add any new files (deduplicate)
-   - `Tech debt` — add new issues (don't delete resolved ones; if a tech
-     debt item is fixed, mention it in `Current state` instead)
+   - `Tech debt` — add new issues (don't delete resolved ones; if resolved, mention it in `Current state` or the relevant `Features completed` entry)
    - `Gotchas` — add new ones (deduplicate)
 
-4. **Keep `Status` accurate.** Default to `in-progress`. If the user said
-   the feature is blocked on something, set to `blocked` and add a note
-   under `Open questions`.
+4. **Keep `Status` accurate.** Default to `in-progress`. If the user said the epic is blocked on something, set to `blocked` and add a note under `Open questions`. If the user said the epic is done, set to `archiving` and suggest `/handoff --archive`.
 
 5. **Show a brief delta to the user** so they can see what changed:
    ```
-   Updated docs/handoff/billing-checkout.md (session #4)
-   Added: 2 decisions, 3 files, 1 tech debt
-   Refreshed: current state, next 3 tasks
+   Updated docs/handoff/funnel-rewire.md (session #6)
+   Feature completed: handoff-skill-spinout
+   Added: 4 decisions, 8 files, 3 gotchas
+   Refreshed: current state, features remaining, next 3 priorities
    ```
 
-## When to invoke `/handoff --ship`
+## When to invoke `/handoff --archive`
 
 Trigger on any of:
-- "/handoff --ship"
-- "this feature is shipped, archive it"
-- "mark <feature> as shipped"
+- "/handoff --archive"
+- "this epic is done, archive it"
+- "mark <epic> as archived"
+- "we're done with <epic>"
 
-### What `--ship` does
+Only run this when the whole epic is shipped — not a single feature inside it. If unsure, ask: "Just confirming — the whole `<epic-slug>` epic is done, not just one feature inside it? `/handoff --archive` moves the file out of the active list."
 
-1. Read `docs/handoff/<slug>.md`.
-2. Add a final session log entry: `<timestamp> — SHIPPED. <summary>`.
-3. Change `Status: in-progress` to `Status: shipped`.
-4. Add `_Shipped: <YYYY-MM-DD>_` to the header.
-5. Move the file from `docs/handoff/<slug>.md` to
-   `docs/handoff/shipped/<slug>.md`.
-6. Confirm to user.
+### What `--archive` does
+
+1. Read `docs/handoff/<epic-slug>.md`.
+2. Add a final session log entry: `<timestamp> — ARCHIVED. <summary>`.
+3. Change `Status` to `archived`.
+4. Add `_Archived: <YYYY-MM-DD>_` to the header.
+5. Ensure `docs/handoff/archived/` exists (create if not).
+6. Move the file from `docs/handoff/<epic-slug>.md` to `docs/handoff/archived/<epic-slug>.md`.
+7. Confirm to the user with a 3-line summary:
+   ```
+   Archived: docs/handoff/archived/<epic-slug>.md
+   Features shipped: <n>
+   Sessions: <count>
+   ```
 
 ## When to invoke `/pickup` (the resume flow)
 
@@ -177,30 +192,24 @@ Trigger on any of:
 - "pick up where we left off"
 - "continue from yesterday"
 
-Also offer it proactively at the start of a session if `docs/handoff/`
-contains any non-shipped files: "I see active handoffs for <list>. Want
-to pick one up?"
+Also offer it proactively at the start of a session if `docs/handoff/` contains any non-archived files: "I see active epics for <list>. Want to pick one up?"
 
 ## What `/pickup` does
 
-1. **List active handoffs.** Read filenames from `docs/handoff/*.md`
-   (excluding `docs/handoff/shipped/`). Sort by `Last updated` desc.
+1. **List active handoffs.** Read filenames from `docs/handoff/*.md` (excluding `docs/handoff/archived/`). Sort by `Last updated` desc.
 
 2. **If exactly one active handoff:** brief on that one.
-   **If zero active handoffs:** say "No active handoffs found. Want to
-   start a new feature?" and stop.
+   **If zero active handoffs:** say "No active epics found. Want to start a new one?" and stop.
    **If multiple active handoffs:** show a short list and ask which:
    ```
-   Active handoffs:
-   1. billing-checkout (last updated 2 days ago, session #4)
-   2. dashboard-v2 (last updated 5 days ago, session #2)
-   3. oauth-flow (last updated 12 days ago, session #1) ⚠ stale
-   Which feature?
+   Active epics:
+   1. funnel-rewire (last updated 2 days ago, session #6, 3 features shipped)
+   2. billing-v2 (last updated 5 days ago, session #2, 0 features shipped)
+   3. auth-migration (last updated 14 days ago, session #1) ⚠ stale
+   Which epic?
    ```
 
-3. **Read the chosen handoff file.** Read the project spec source of
-   truth in this order: `agents.md` (cofoundr-system + AGENTS.md
-   convention) → `docs/spec.md` → `CLAUDE.md` → `README.md`.
+3. **Read the chosen handoff file.** Then read the project spec source of truth in this order: `agents.md` (CoFoundr-system + AGENTS.md convention) → `docs/spec.md` → `CLAUDE.md` → `README.md`.
 
 4. **Output the "You are here" briefing in this exact shape:**
 
@@ -208,11 +217,15 @@ to pick one up?"
 ## You are here
 
 Project: <name from spec>
-Feature: <slug from filename>
+Epic: <slug from filename>
 Status: <from handoff>
 Sessions so far: <count of session log entries>
+Features shipped: <n> · Features remaining: <m>
 
 Last session built: <one-sentence from "Current state">
+
+Recently shipped:
+- <most recent 2-3 from "Features completed">
 
 Open questions (need your input):
 - <each open question>
@@ -222,7 +235,7 @@ Top tech debt:
 - [<sev>] <issue>
 (top 3 by severity)
 
-Next task: <#1 from "Next 3 tasks">
+Next priority: <#1 from "Next 3 priorities">
 Success criterion: <its success criterion>
 
 Ready to continue? Reply "go" to start, or tell me to do something else.
@@ -235,30 +248,20 @@ Ready to continue? Reply "go" to start, or tell me to do something else.
 ### For handoff files
 - **No fluff sentences.** Every line earns its keep or gets deleted.
 - **No "we should consider..." softness.** If a decision was made, name it.
-- **Tasks must have success criteria.** "Implement billing" is bad.
-  "Stripe checkout creates subscription, webhook idempotently upserts
-  to subscriptions table, /billing/success route shows the new plan"
-  is good.
-- **Be honest about tech debt.** Don't whitewash the messy parts —
-  the next session needs to know where the bodies are buried.
+- **Priorities must have success criteria.** "Implement billing" is bad. "Stripe checkout creates subscription, webhook idempotently upserts to subscriptions table, /billing/success route shows the new plan" is good.
+- **Be honest about tech debt.** Don't whitewash the messy parts — the next session needs to know where the bodies are buried.
+- **Features completed are dated and concrete.** "2026-05-12 — handoff-skill-spinout — public repo live at CoFoundr-org/handoff-skill, V5 playbook URL no longer 404s" beats "shipped handoff skill".
 
-### For resume briefings
-- **Don't re-summarize the spec.** The user knows it. Briefing is about
-  what's *changing*, not what the project is.
+### For pickup briefings
+- **Don't re-summarize the spec.** The user knows it. Briefing is about what's *changing*, not what the project is.
 - **Don't volunteer to do work.** Just say "ready to continue?"
-- **If the latest handoff is >7 days old, flag it as ⚠ stale.**
-  Recommend re-reading the handoff manually first.
+- **If the latest handoff is >7 days old, flag it as ⚠ stale.** Recommend re-reading the handoff manually first.
 
 ## Edge cases
 
 - **No `docs/handoff/` directory exists yet.** Create it. Don't ask.
-- **Feature slug collision.** If user provides a slug that already exists
-  but the conversation seems to be about a different feature, ask:
-  "Existing handoff `<slug>` is about X. Is this the same feature, or
-  should we use a different slug?"
-- **User asks to resume mid-session with active context.** Confirm they
-  want to switch context first — they may have meant something else.
-- **Handoff exists but `Status: shipped`.** Tell user the feature was
-  shipped on `<date>`. Ask if they want to (a) start a new feature,
-  (b) work on a different active handoff, or (c) re-open the shipped
-  one (move it back to `docs/handoff/`).
+- **Epic slug collision.** If user provides a slug that already exists but the conversation seems to be about a different epic, ask: "Existing handoff `<slug>` is about X. Is this the same epic, or should we use a different slug?"
+- **User wants to log a feature but the epic doesn't exist yet.** Create the epic on the fly with the just-finished feature as the first entry under `Features completed`.
+- **User runs `/handoff --archive` but the epic still has open features.** Confirm: "There are still <n> features under `Features remaining`. Archive anyway, or rename the remaining ones first?"
+- **User asks to resume mid-session with active context.** Confirm they want to switch context first — they may have meant something else.
+- **Handoff exists but `Status: archived`.** Tell user the epic was archived on `<date>`. Ask if they want to (a) start a new epic, (b) work on a different active handoff, or (c) re-open the archived one (move it back to `docs/handoff/`).

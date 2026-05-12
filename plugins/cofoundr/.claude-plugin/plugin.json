@@ -1,0 +1,12 @@
+{
+  "name": "cofoundr",
+  "description": "Persistent session state for multi-session AI coding. /cofoundr:handoff writes or updates docs/handoff/<epic>.md at session end; /cofoundr:pickup briefs you at session start. One file per epic, features accumulate inside it, never overwrites.",
+  "version": "0.2.0",
+  "author": {
+    "name": "CoFoundr"
+  },
+  "homepage": "https://github.com/CoFoundr-org/handoff-skill",
+  "repository": "https://github.com/CoFoundr-org/handoff-skill",
+  "license": "MIT",
+  "keywords": ["handoff", "session", "context", "epic", "resume", "pickup"]
+}

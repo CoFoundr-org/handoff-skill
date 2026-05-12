@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
-# install.sh — one-line installer for the cofoundr-handoff Claude Code skill.
+# install.sh — minimal/fallback installer for the CoFoundr handoff + pickup skills.
+#
+# The recommended install path is the Claude Code plugin marketplace:
+#   /plugin marketplace add CoFoundr-org/handoff-skill
+#   /plugin install cofoundr@cofoundr
+# That gives you /cofoundr:handoff and /cofoundr:pickup with auto-updates.
+#
+# This script is the fallback for users who prefer bare /handoff and /pickup
+# commands (no namespace prefix). It writes two user-scope skills directly
+# to ~/.claude/skills/ (or ./.claude/skills/ with --local). No auto-updates;
+# re-run this script to pull the latest.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/CoFoundr-org/handoff-skill/main/install.sh | bash
-#
-# Or project-local:
 #   curl -fsSL https://raw.githubusercontent.com/CoFoundr-org/handoff-skill/main/install.sh | bash -s -- --local
 
 set -euo pipefail
 
 REPO_URL="https://github.com/CoFoundr-org/handoff-skill"
+RAW_BASE="https://raw.githubusercontent.com/CoFoundr-org/handoff-skill/main"
 SCOPE="global"
 
 for arg in "$@"; do
@@ -17,7 +26,14 @@ for arg in "$@"; do
     --local) SCOPE="local" ;;
     --help|-h)
       cat <<EOF
-cofoundr-handoff installer
+CoFoundr handoff + pickup installer (curl|bash fallback)
+
+Recommended install is the Claude Code plugin marketplace:
+  /plugin marketplace add CoFoundr-org/handoff-skill
+  /plugin install cofoundr@cofoundr
+That gives /cofoundr:handoff and /cofoundr:pickup with auto-updates.
+
+This script writes two skills directly so you can use bare /handoff and /pickup.
 
 Usage:
   curl -fsSL ${REPO_URL}/raw/main/install.sh | bash
@@ -43,68 +59,65 @@ else
   CLAUDE_DIR="$(pwd)/.claude"
 fi
 
-SKILL_DIR="$CLAUDE_DIR/skills/cofoundr-handoff"
-COMMANDS_DIR="$CLAUDE_DIR/commands"
+SKILLS_DIR="$CLAUDE_DIR/skills"
 
-if ! command -v git >/dev/null 2>&1; then
-  echo "Error: git is required but not installed." >&2
+if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+  echo "Error: need curl or wget to download skill files." >&2
   exit 1
 fi
 
-echo "Installing cofoundr-handoff skill..."
-
-# 1. Clone (or update) the skill.
-mkdir -p "$(dirname "$SKILL_DIR")"
-if [[ -d "$SKILL_DIR/.git" ]]; then
-  echo "  updating existing install at $SKILL_DIR"
-  git -C "$SKILL_DIR" pull --ff-only --quiet
-else
-  if [[ -e "$SKILL_DIR" ]]; then
-    echo "Error: $SKILL_DIR exists but is not a git checkout. Move or remove it and re-run." >&2
-    exit 1
+fetch() {
+  local url="$1"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url"
+  else
+    wget -qO- "$url"
   fi
-  git clone --quiet "$REPO_URL" "$SKILL_DIR"
-  echo "  cloned to $SKILL_DIR"
+}
+
+echo "Installing CoFoundr handoff + pickup skills (curl|bash fallback path)..."
+echo ""
+echo "Tip: the recommended install is the plugin marketplace, which gives you"
+echo "auto-updates and namespaced commands:"
+echo "  /plugin marketplace add CoFoundr-org/handoff-skill"
+echo "  /plugin install cofoundr@cofoundr"
+echo ""
+
+mkdir -p "$SKILLS_DIR/handoff" "$SKILLS_DIR/pickup"
+
+for skill in handoff pickup; do
+  src="$RAW_BASE/plugins/cofoundr/skills/${skill}/SKILL.md"
+  dest="$SKILLS_DIR/${skill}/SKILL.md"
+  # Strip the /cofoundr: namespace so bare /handoff and /pickup match the install
+  # path the user is on. Plugin users keep the namespace (this script isn't run).
+  fetch "$src" | sed 's|/cofoundr:|/|g' > "$dest"
+  echo "  installed $dest"
+done
+
+# Clean up the previous (single-SKILL.md) install layout if present.
+legacy_skill="$CLAUDE_DIR/skills/cofoundr-handoff"
+legacy_cmd_handoff="$CLAUDE_DIR/commands/handoff.md"
+legacy_cmd_pickup="$CLAUDE_DIR/commands/pickup.md"
+
+if [[ -d "$legacy_skill" ]]; then
+  command rm -rf "$legacy_skill"
+  echo "  removed legacy skill dir $legacy_skill"
 fi
-
-# 2. Write the two slash-command shims.
-mkdir -p "$COMMANDS_DIR"
-
-cat > "$COMMANDS_DIR/handoff.md" <<'EOF'
----
-description: Save Claude Code session state to a handoff doc (cofoundr-handoff skill)
----
-
-Invoke the `cofoundr-handoff` skill in handoff mode. Follow its spec for creating or updating `docs/handoff/<epic-slug>.md` — one file per epic, features accumulate inside it, never overwriting.
-
-If the user passes `--archive`, run the archive flow instead (move the handoff to `docs/handoff/archived/<epic-slug>.md`). Only do this when the whole epic is done, not just a single feature inside it.
-
-Any extra arguments after `/handoff` are passed through to the skill as `$ARGUMENTS`.
-EOF
-echo "  wrote $COMMANDS_DIR/handoff.md"
-
-cat > "$COMMANDS_DIR/pickup.md" <<'EOF'
----
-description: Resume a Claude Code session from the latest epic handoff (cofoundr-handoff skill)
----
-
-Invoke the `cofoundr-handoff` skill in resume mode (the `/pickup` flow).
-
-Read `docs/handoff/*.md` (excluding `docs/handoff/archived/`), sort by `Last updated` desc, and either:
-- brief the agent on the single active epic,
-- ask the user to choose if multiple are active,
-- or report "no active epics" if none exist.
-
-Then output the "You are here" briefing per the skill's spec and wait for "go" before doing any work.
-
-Why this is named `/pickup` and not `/resume`: Claude Code reserves `/resume` for resuming previous sessions, so a third-party `/resume` command never reaches the skill.
-EOF
-echo "  wrote $COMMANDS_DIR/pickup.md"
+for f in "$legacy_cmd_handoff" "$legacy_cmd_pickup"; do
+  if [[ -f "$f" ]] && grep -q "cofoundr-handoff" "$f" 2>/dev/null; then
+    command rm -f "$f"
+    echo "  removed legacy shim $f"
+  fi
+done
 
 cat <<EOF
 
 Done. ${SCOPE^} install complete.
 
-Start a new Claude Code session and type /handoff to verify it's loaded.
+Skills installed:
+  $SKILLS_DIR/handoff/SKILL.md   → /handoff
+  $SKILLS_DIR/pickup/SKILL.md    → /pickup
+
+Start a new Claude Code session and type /handoff to verify.
 Docs: ${REPO_URL}
 EOF

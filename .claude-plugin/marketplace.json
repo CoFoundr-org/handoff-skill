@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "cofoundr",
+  "description": "Claude Code plugins from CoFoundr.",
+  "owner": {
+    "name": "CoFoundr",
+    "email": "hello@cofoundr.ai"
+  },
+  "plugins": [
+    {
+      "name": "cofoundr",
+      "source": "./plugins/cofoundr",
+      "description": "Persistent session state for multi-session AI coding. Adds /cofoundr:handoff and /cofoundr:pickup so context survives /clear.",
+      "version": "0.2.0",
+      "author": {
+        "name": "CoFoundr"
+      },
+      "homepage": "https://github.com/CoFoundr-org/handoff-skill",
+      "repository": "https://github.com/CoFoundr-org/handoff-skill",
+      "license": "MIT",
+      "category": "workflow",
+      "keywords": ["handoff", "session", "context", "epic", "resume", "pickup"]
+    }
+  ]
+}

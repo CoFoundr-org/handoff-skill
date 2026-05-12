@@ -1,27 +1,12 @@
 ---
-name: cofoundr-handoff
-description: Persists Claude Code session state across multi-feature epics. Provides two paired flows — /handoff writes or updates `docs/handoff/<epic-slug>.md` at session end (one file per epic, accumulates as you complete features inside it, never overwrites), and /pickup reads the latest handoff at session start and briefs the agent on epic progress + next-up feature. Use /handoff --archive only when the whole epic is done. Trigger when the user says "handoff", "/handoff", "wrap up", "let's stop here", "let's stop for today", "save state", "I'm going to /clear", "make me a handoff doc", "pickup", "/pickup", "resume", "where were we", "pick up where we left off", or "continue from yesterday". Note: avoid claiming the literal `/resume` slash — Claude Code reserves it for session resumption.
+description: Save Claude Code session state to a per-epic handoff doc. Writes or updates docs/handoff/<epic-slug>.md so the next session can pick up without context loss. Pass --archive when the whole epic is shipped.
+when_to_use: Trigger when the user says "handoff", "/handoff", "wrap up", "let's wrap up", "let's stop here", "let's stop for today", "save state", "I'm going to /clear", "I want to clear", or "make me a handoff doc". Use --archive only when the whole epic is done.
+argument-hint: [--archive]
 ---
 
-# CoFoundr Handoff Skill
+# /cofoundr:handoff
 
-Two paired commands that fix the most common failure mode in multi-session AI coding: re-explaining yourself every time you `/clear`. Designed for the common case — one **epic** of related work, many features, many sessions, accumulating state.
-
-## When to Use
-
-- An epic of work (e.g. a milestone, a rewrite, a launch push) is going to span several sessions and several features.
-- The user is winding down a session and wants the next one to pick up without context loss.
-- The user is starting a session and wants the agent briefed on epic progress + what's next.
-- A feature inside the epic just completed and the user wants to log it before moving on.
-- Context is degrading (output quality drops well before the window fills) and a `/clear` is imminent.
-
-## When NOT to Use
-
-- A truly one-off task that ships in a single session — handoff overhead isn't worth it.
-- Quick Q&A, code review, or debugging conversations not tied to an epic.
-- Mid-task within an active session — `/handoff` is for stopping points, not check-ins.
-- The user already has a handoff doc open and just wants you to read it — use Read directly instead of running `/pickup`.
-- No `docs/` directory and the user explicitly wants nothing written to disk.
+Save session state to `docs/handoff/<epic-slug>.md`. One file per epic, features accumulate inside it, never overwrites.
 
 ## Design principle
 
@@ -34,24 +19,17 @@ Inside an epic, you'll complete one feature at a time. When a feature is done, y
 Section semantics:
 - **Append-only:** `Features completed`, `Session log`, `Decisions made`, `Files touched`, `Tech debt`, `Gotchas`
 - **Overwrite each handoff:** `Current state`, `Features remaining`, `Next 3 priorities`, `Last updated`
-- **`Status` field:** `in-progress` (default), `blocked` (something needs user input), or `archiving` (epic is done, ready for `/handoff --archive`)
+- **`Status` field:** `in-progress` (default), `blocked` (something needs user input), or `archiving` (epic is done, ready for `--archive`)
 
-When the whole epic is done, `/handoff --archive` moves the file to `docs/handoff/archived/<epic-slug>.md` so it's preserved but out of the active list.
+When the whole epic is done, `/cofoundr:handoff --archive` moves the file to `docs/handoff/archived/<epic-slug>.md`.
 
-## When to invoke `/handoff`
+## When NOT to use
 
-Trigger on any of:
-- "/handoff"
-- "handoff"
-- "wrap up" / "let's wrap up"
-- "let's stop here" / "let's stop for today"
-- "save state"
-- "I'm going to /clear" / "I want to clear"
-- "make me a handoff doc"
+- A truly one-off task that ships in a single session — handoff overhead isn't worth it.
+- Mid-task within an active session — `/handoff` is for stopping points, not check-ins.
+- No `docs/` directory and the user explicitly wants nothing written to disk.
 
-If the user has just finished a feature inside an epic (not the whole epic), proceed as a normal handoff — log the completed feature, refresh state, do not archive.
-
-## What `/handoff` does
+## What this skill does
 
 1. **Determine the current epic slug.**
    - First try to infer from the conversation. The epic name is usually broader than the feature you just worked on (e.g. if you shipped "handoff-skill-spinout", the epic is likely "funnel-rewire" or whatever broader campaign it's part of). Check `.claude/tasks/` for an active multi-feature task doc — its slug is a strong hint.
@@ -68,9 +46,9 @@ If the user has just finished a feature inside an epic (not the whole epic), pro
    - "Handoff <updated|created>: docs/handoff/<epic-slug>.md"
    - "Sessions: <count> · Status: <in-progress|blocked|archiving> · Features done: <n>/<total>"
    - "Next priority: <#1 from Next 3 priorities>"
-   - "Run `/clear` then `/pickup` to continue in a fresh session. (Or `/handoff --archive` if the whole epic is done.)"
+   - "Run `/clear` then `/cofoundr:pickup` to continue in a fresh session. (Or `/cofoundr:handoff --archive` if the whole epic is done.)"
 
-### Create flow (first session on an epic)
+## Create flow (first session on an epic)
 
 Write `docs/handoff/<epic-slug>.md` using the template below. Replace every `<placeholder>` with concrete content — no brackets should remain in the output.
 
@@ -127,7 +105,7 @@ Empty section "_(none)_" if there aren't any.>
 <weird things only learned by hitting them. Env vars. Race conditions. Library quirks. Empty if none yet.>
 ```
 
-### Update flow (continuing epic)
+## Update flow (continuing epic)
 
 When the file already exists:
 
@@ -147,7 +125,7 @@ When the file already exists:
    - `Tech debt` — add new issues (don't delete resolved ones; if resolved, mention it in `Current state` or the relevant `Features completed` entry)
    - `Gotchas` — add new ones (deduplicate)
 
-4. **Keep `Status` accurate.** Default to `in-progress`. If the user said the epic is blocked on something, set to `blocked` and add a note under `Open questions`. If the user said the epic is done, set to `archiving` and suggest `/handoff --archive`.
+4. **Keep `Status` accurate.** Default to `in-progress`. If the user said the epic is blocked on something, set to `blocked` and add a note under `Open questions`. If the user said the epic is done, set to `archiving` and suggest `--archive`.
 
 5. **Show a brief delta to the user** so they can see what changed:
    ```
@@ -157,15 +135,15 @@ When the file already exists:
    Refreshed: current state, features remaining, next 3 priorities
    ```
 
-## When to invoke `/handoff --archive`
+## Archive flow (`--archive`)
 
 Trigger on any of:
-- "/handoff --archive"
+- `/cofoundr:handoff --archive`
 - "this epic is done, archive it"
 - "mark <epic> as archived"
 - "we're done with <epic>"
 
-Only run this when the whole epic is shipped — not a single feature inside it. If unsure, ask: "Just confirming — the whole `<epic-slug>` epic is done, not just one feature inside it? `/handoff --archive` moves the file out of the active list."
+Only run this when the whole epic is shipped — not a single feature inside it. If unsure, ask: "Just confirming — the whole `<epic-slug>` epic is done, not just one feature inside it? `--archive` moves the file out of the active list."
 
 ### What `--archive` does
 
@@ -182,86 +160,18 @@ Only run this when the whole epic is shipped — not a single feature inside it.
    Sessions: <count>
    ```
 
-## When to invoke `/pickup` (the resume flow)
+## Quality bars for handoff files
 
-Trigger on any of:
-- "/pickup"
-- "pickup"
-- "resume" (the natural-language form — note `/resume` itself is reserved by Claude Code)
-- "where were we"
-- "pick up where we left off"
-- "continue from yesterday"
-
-Also offer it proactively at the start of a session if `docs/handoff/` contains any non-archived files: "I see active epics for <list>. Want to pick one up?"
-
-## What `/pickup` does
-
-1. **List active handoffs.** Read filenames from `docs/handoff/*.md` (excluding `docs/handoff/archived/`). Sort by `Last updated` desc.
-
-2. **If exactly one active handoff:** brief on that one.
-   **If zero active handoffs:** say "No active epics found. Want to start a new one?" and stop.
-   **If multiple active handoffs:** show a short list and ask which:
-   ```
-   Active epics:
-   1. funnel-rewire (last updated 2 days ago, session #6, 3 features shipped)
-   2. billing-v2 (last updated 5 days ago, session #2, 0 features shipped)
-   3. auth-migration (last updated 14 days ago, session #1) ⚠ stale
-   Which epic?
-   ```
-
-3. **Read the chosen handoff file.** Then read the project spec source of truth in this order: `agents.md` (CoFoundr-system + AGENTS.md convention) → `docs/spec.md` → `CLAUDE.md` → `README.md`.
-
-4. **Output the "You are here" briefing in this exact shape:**
-
-```
-## You are here
-
-Project: <name from spec>
-Epic: <slug from filename>
-Status: <from handoff>
-Sessions so far: <count of session log entries>
-Features shipped: <n> · Features remaining: <m>
-
-Last session built: <one-sentence from "Current state">
-
-Recently shipped:
-- <most recent 2-3 from "Features completed">
-
-Open questions (need your input):
-- <each open question>
-(or "_(none)_" if empty)
-
-Top tech debt:
-- [<sev>] <issue>
-(top 3 by severity)
-
-Next priority: <#1 from "Next 3 priorities">
-Success criterion: <its success criterion>
-
-Ready to continue? Reply "go" to start, or tell me to do something else.
-```
-
-5. **Wait for confirmation before doing any work.**
-
-## Quality bars
-
-### For handoff files
 - **No fluff sentences.** Every line earns its keep or gets deleted.
 - **No "we should consider..." softness.** If a decision was made, name it.
 - **Priorities must have success criteria.** "Implement billing" is bad. "Stripe checkout creates subscription, webhook idempotently upserts to subscriptions table, /billing/success route shows the new plan" is good.
 - **Be honest about tech debt.** Don't whitewash the messy parts — the next session needs to know where the bodies are buried.
 - **Features completed are dated and concrete.** "2026-05-12 — handoff-skill-spinout — public repo live at CoFoundr-org/handoff-skill, V5 playbook URL no longer 404s" beats "shipped handoff skill".
 
-### For pickup briefings
-- **Don't re-summarize the spec.** The user knows it. Briefing is about what's *changing*, not what the project is.
-- **Don't volunteer to do work.** Just say "ready to continue?"
-- **If the latest handoff is >7 days old, flag it as ⚠ stale.** Recommend re-reading the handoff manually first.
-
 ## Edge cases
 
 - **No `docs/handoff/` directory exists yet.** Create it. Don't ask.
 - **Epic slug collision.** If user provides a slug that already exists but the conversation seems to be about a different epic, ask: "Existing handoff `<slug>` is about X. Is this the same epic, or should we use a different slug?"
 - **User wants to log a feature but the epic doesn't exist yet.** Create the epic on the fly with the just-finished feature as the first entry under `Features completed`.
-- **User runs `/handoff --archive` but the epic still has open features.** Confirm: "There are still <n> features under `Features remaining`. Archive anyway, or rename the remaining ones first?"
-- **User asks to resume mid-session with active context.** Confirm they want to switch context first — they may have meant something else.
-- **Handoff exists but `Status: archived`.** Tell user the epic was archived on `<date>`. Ask if they want to (a) start a new epic, (b) work on a different active handoff, or (c) re-open the archived one (move it back to `docs/handoff/`).
+- **User runs `--archive` but the epic still has open features.** Confirm: "There are still <n> features under `Features remaining`. Archive anyway, or rename the remaining ones first?"
+- **Handoff exists but `Status: archived`.** Tell user the epic was archived on `<date>`. Ask if they want to re-open it (move back from `archived/`) or start a new epic.

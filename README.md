@@ -1,26 +1,42 @@
-# cofoundr-handoff
+# cofoundr — handoff + pickup skills for Claude Code
 
-Two Claude Code slash commands that fix the most common multi-session AI coding failure: re-explaining yourself every time you `/clear`.
+Two Claude Code skills that fix the most common multi-session AI coding failure: re-explaining yourself every time you `/clear`.
 
-- `/handoff` — at the end of a session, creates or updates `docs/handoff/<epic>.md` for the epic you're working on
-- `/handoff --archive` — when the whole epic is shipped, moves the file to `docs/handoff/archived/`
-- `/pickup` — at the start of the next session, reads the latest handoff and briefs the agent on epic progress + what's next
+- **`/cofoundr:handoff`** — at the end of a session, creates or updates `docs/handoff/<epic>.md` for the epic you're working on
+- **`/cofoundr:handoff --archive`** — when the whole epic is shipped, moves the file to `docs/handoff/archived/`
+- **`/cofoundr:pickup`** — at the start of the next session, reads the latest handoff and briefs the agent on epic progress + what's next
 
-## One-line install
+## Install (recommended): Claude Code plugin marketplace
+
+From inside Claude Code:
+
+```text
+/plugin marketplace add CoFoundr-org/handoff-skill
+/plugin install cofoundr@cofoundr
+/reload-plugins
+```
+
+That's it. Type `/cofoundr:handoff` or `/cofoundr:pickup` to use the skills. They auto-update whenever this repo ships a new version.
+
+> Tab-completion works after `/cof…`, so you don't pay the namespace cost in keystrokes.
+
+## Install (alternative): one-line curl
+
+If you'd rather have bare `/handoff` and `/pickup` (no namespace prefix), use the fallback installer:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CoFoundr-org/handoff-skill/main/install.sh | bash
 ```
 
-That clones the skill into `~/.claude/skills/cofoundr-handoff/` and writes the two slash-command shims (`/handoff`, `/pickup`) into `~/.claude/commands/`. Start a new Claude Code session — type `/handoff` to verify it's loaded.
-
-For a single project only, pass `--local`:
+That writes two user-scope skills directly to `~/.claude/skills/handoff/` and `~/.claude/skills/pickup/`. For a single project only, pass `--local`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CoFoundr-org/handoff-skill/main/install.sh | bash -s -- --local
 ```
 
-> **Why `/pickup` and not `/resume`?** Claude Code reserves `/resume` for resuming previous sessions, so a third-party `/resume` would never reach the skill. `/pickup` is the closest non-colliding alias.
+No auto-updates on this path — re-run the script to pull the latest.
+
+> **Why `/pickup` and not `/resume`?** Claude Code reserves bare `/resume` for session resumption, so any third-party `/resume` would never reach the skill. `/pickup` is the non-colliding alias. The plugin install also uses `pickup` (as `/cofoundr:pickup`) for parity across install paths.
 
 ## Design principle
 
@@ -28,7 +44,7 @@ curl -fsSL https://raw.githubusercontent.com/CoFoundr-org/handoff-skill/main/ins
 
 An epic is a coherent body of work — usually a milestone, a campaign, or a multi-feature push. Inside it you'll complete one feature at a time. When a feature ships, you log it in the epic's handoff and move to the next one. The epic's handoff file is the running history of the whole campaign.
 
-A typical epic spans 5–30 working sessions and 3–10 features. Each session ends with `/handoff` and starts with `/pickup`. The handoff file (`docs/handoff/<epic>.md`) is the same file across all those sessions — it grows, it doesn't get replaced.
+A typical epic spans 5–30 working sessions and 3–10 features. Each session ends with `/cofoundr:handoff` and starts with `/cofoundr:pickup`. The handoff file (`docs/handoff/<epic>.md`) is the same file across all those sessions — it grows, it doesn't get replaced.
 
 `Features completed`, `Decisions made`, `Files touched`, `Tech debt`, and `Gotchas` are append-only. `Current state`, `Features remaining`, and `Next 3 priorities` overwrite each session. `Session log` appends.
 
@@ -40,20 +56,22 @@ Context windows degrade well before they fill — output quality drops at 40–5
 
 ## Use
 
+(Examples use the namespaced plugin form. If you installed via curl, drop the `cofoundr:` prefix.)
+
 ### First session on a new epic
 
 ```
-> /handoff
+> /cofoundr:handoff
   Handoff created: docs/handoff/funnel-rewire.md
   Sessions: 1 · Status: in-progress · Features done: 0/4
   Next priority: license-gate server-side verification
-  Run /clear then /pickup to continue in a fresh session.
+  Run /clear then /cofoundr:pickup to continue in a fresh session.
 ```
 
 ### Subsequent sessions on the same epic (feature just shipped)
 
 ```
-> /handoff
+> /cofoundr:handoff
   Updated docs/handoff/funnel-rewire.md (session #6)
   Feature completed: handoff-skill-spinout
   Added: 4 decisions, 8 files, 3 gotchas
@@ -63,7 +81,7 @@ Context windows degrade well before they fill — output quality drops at 40–5
 ### Picking up the next morning
 
 ```
-> /pickup
+> /cofoundr:pickup
 
   ## You are here
 
@@ -100,7 +118,7 @@ Context windows degrade well before they fill — output quality drops at 40–5
 ### When the whole epic ships
 
 ```
-> /handoff --archive
+> /cofoundr:handoff --archive
   Archived: docs/handoff/archived/funnel-rewire.md
   Features shipped: 7
   Sessions: 12
@@ -169,17 +187,31 @@ strategy decision pending; PDF restyle deferred.
 
 ## Why two commands instead of one
 
-`/handoff` is for the human-driven moment when you're ready to stop. `/pickup` is for the AI-driven moment of "load context + brief me + wait for go." Splitting them is what makes the skill predictable: `/handoff` always writes, `/pickup` always reads-then-briefs-then-waits. Neither does the other's job.
+`/cofoundr:handoff` is for the human-driven moment when you're ready to stop. `/cofoundr:pickup` is for the AI-driven moment of "load context + brief me + wait for go." Splitting them is what makes the skill predictable: handoff always writes, pickup always reads-then-briefs-then-waits. Neither does the other's job.
 
 ## Spec compatibility
 
-When briefing on `/pickup`, the skill reads project context in this order:
+When briefing on `/cofoundr:pickup`, the skill reads project context in this order:
 1. `agents.md` (CoFoundr-system + the emerging open AGENTS.md convention)
 2. `docs/spec.md` (single-file format)
 3. `CLAUDE.md` (Claude Code default)
 4. `README.md` (fallback)
 
 If you use the [CoFoundr Starter Kit](https://cofoundr.ai/starter), this skill is integrated and aware of its multi-file format (product/prd/tech/rules/phases/agents).
+
+## Repo layout
+
+```
+.claude-plugin/marketplace.json       # marketplace catalog
+plugins/cofoundr/
+  .claude-plugin/plugin.json          # plugin manifest
+  skills/
+    handoff/SKILL.md                  # /cofoundr:handoff
+    pickup/SKILL.md                   # /cofoundr:pickup
+install.sh                            # curl|bash fallback
+LICENSE
+README.md
+```
 
 ## License
 

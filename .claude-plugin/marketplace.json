@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
-  "name": "cofoundr",
+  "name": "handoff-skill",
   "description": "Claude Code plugins from CoFoundr.",
   "owner": {
     "name": "CoFoundr",
@@ -8,7 +8,7 @@
   },
   "plugins": [
     {
-      "name": "cofoundr",
+      "name": "handoff-skill",
       "source": "./plugins/cofoundr",
       "description": "Persistent session state for multi-session AI coding. Adds /cofoundr:handoff and /cofoundr:pickup so context survives /clear.",
       "version": "0.2.0",

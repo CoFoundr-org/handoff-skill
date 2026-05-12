@@ -12,7 +12,7 @@ From inside Claude Code:
 
 ```text
 /plugin marketplace add CoFoundr-org/handoff-skill
-/plugin install cofoundr@cofoundr
+/plugin install cofoundr@handoff-skill
 /reload-plugins
 ```
 
@@ -62,9 +62,9 @@ Context windows degrade well before they fill — output quality drops at 40–5
 
 ```
 > /cofoundr:handoff
-  Handoff created: docs/handoff/funnel-rewire.md
+  Handoff created: docs/handoff/checkout-v2.md
   Sessions: 1 · Status: in-progress · Features done: 0/4
-  Next priority: license-gate server-side verification
+  Next priority: replace legacy payment form with Stripe Elements
   Run /clear then /cofoundr:pickup to continue in a fresh session.
 ```
 
@@ -72,9 +72,9 @@ Context windows degrade well before they fill — output quality drops at 40–5
 
 ```
 > /cofoundr:handoff
-  Updated docs/handoff/funnel-rewire.md (session #6)
-  Feature completed: handoff-skill-spinout
-  Added: 4 decisions, 8 files, 3 gotchas
+  Updated docs/handoff/checkout-v2.md (session #4)
+  Feature completed: stripe-migration
+  Added: 3 decisions, 6 files, 2 gotchas
   Refreshed: current state, features remaining, next 3 priorities
 ```
 
@@ -85,30 +85,29 @@ Context windows degrade well before they fill — output quality drops at 40–5
 
   ## You are here
 
-  Project: cofoundr-site
-  Epic: funnel-rewire
+  Project: shopfront
+  Epic: checkout-v2
   Status: in-progress
-  Sessions so far: 6
-  Features shipped: 3 · Features remaining: 4
+  Sessions so far: 4
+  Features shipped: 2 · Features remaining: 2
 
-  Last session built: handoff-skill repo live at CoFoundr-org/handoff-skill,
-  V5 playbook page 12 URL no longer 404s.
+  Last session built: Stripe Elements migration complete; old Braintree
+  integration removed; webhook handler updated for new event shapes.
 
   Recently shipped:
-  - 2026-05-12 — handoff-skill-spinout — public OSS repo live
-  - 2026-05-11 — license-gate-bundle-fix — bundle SKU mints starter key
-  - 2026-05-10 — server-side-license-verify — /api/licenses/verify shipped
+  - 2026-04-22 — stripe-migration — Elements form live, Braintree removed
+  - 2026-04-20 — cart-redesign — new multi-step cart UI shipped
 
   Open questions (need your input):
-  - PR #24 email overhaul strategy: rebase / carve / restart?
+  - Promo codes: apply at checkout client-side or validate server-side only?
 
   Top tech debt:
-  - [med] PDF visual restyle still on Reportlab
-  - [low] no CHANGELOG on handoff-skill repo
-  - [low] admin funnel attribution mixes thanks→starter with email→starter
+  - [med] webhook handler has no retry logic for failed order inserts
+  - [low] cart state still uses localStorage, should move to server session
+  - [low] no integration tests for the new Elements form flow
 
-  Next priority: decide PR #24 strategy
-  Success criterion: option (a/b/c) chosen, recorded in funnel-rewire task doc.
+  Next priority: promo code feature
+  Success criterion: codes validated server-side, applied to Stripe PaymentIntent before confirm.
 
   Ready to continue? Reply "go" to start, or tell me to do something else.
 
@@ -119,70 +118,68 @@ Context windows degrade well before they fill — output quality drops at 40–5
 
 ```
 > /cofoundr:handoff --archive
-  Archived: docs/handoff/archived/funnel-rewire.md
-  Features shipped: 7
-  Sessions: 12
+  Archived: docs/handoff/archived/checkout-v2.md
+  Features shipped: 4
+  Sessions: 7
 ```
 
 ## What the file looks like
 
 ```markdown
-# funnel-rewire
+# checkout-v2
 
 _Status: in-progress_
-_Started: 2026-05-09_
-_Last updated: 2026-05-12 09:30_
+_Started: 2026-04-18_
+_Last updated: 2026-04-22 11:00_
 
 ## Current state
-License gate fully shipped (Stripe-side mint, verify endpoint, recovery flow,
-CLI 1.5.0 published). Handoff-skill spun out to public repo. Email overhaul
-strategy decision pending; PDF restyle deferred.
+Stripe Elements migration complete; old Braintree code removed. Cart redesign
+shipped in session 2. Promo code feature is next; open question on validation
+approach unresolved. Email receipts deferred to session 6.
 
 ## Features completed (in this epic)
-- 2026-05-10 — server-side-license-verify — /api/licenses/verify shipped
-- 2026-05-11 — license-gate-bundle-fix — bundle SKU mints starter key
-- 2026-05-12 — handoff-skill-spinout — public OSS repo at CoFoundr-org/handoff-skill
+- 2026-04-20 — cart-redesign — multi-step cart UI, address autocomplete
+- 2026-04-22 — stripe-migration — Elements form, Braintree removed, webhook updated
 
 ## Features remaining (priority order)
-- [ ] email-overhaul-pr-24 — Sabri-voice pass on 17 templates; needs strategy call first
-- [ ] pdf-visual-restyle — port Reportlab → Puppeteer for V1 + V5 playbooks
-- [ ] v1-beginner-playbook-rewrite — content brief in funnel-rewire doc
-- [ ] tdd-5whys-inline-callouts — embed in advanced playbook step 4 + step 9
+- [ ] promo-codes — server-side validation + Stripe PaymentIntent discount
+- [ ] email-receipts — transactional receipt via Resend on order.completed
 
 ## Next 3 priorities (across features)
-1. Resolve PR #24 strategy (a/b/c) — success criterion: choice recorded.
-2. Start email-overhaul work per chosen strategy — success criterion: first 3 templates Sabri-voiced.
-3. Begin PDF restyle Phase 1 (V5) — success criterion: V5 renders via Puppeteer pipeline.
+1. Resolve promo code validation approach — success criterion: approach agreed, ticket updated.
+2. Implement promo codes — success criterion: codes applied pre-confirm, tested with 10% + free-ship fixtures.
+3. Email receipts — success criterion: receipt lands in inbox < 30s after test purchase.
 
 ## Open questions
-- PR #24 email overhaul strategy: (a) rebase + one big PR, (b) carve into chunks, (c) close and restart from audit?
+- Promo codes: validate client-side (instant UX) or server-side only (safer)? Leans server-side but needs PM sign-off.
 
 ## Session log
-- 2026-05-09 — license gate scope locked; KitPurchase model design
-- 2026-05-10 — server-side mint + verify endpoint shipped
-- 2026-05-11 — bundle SKU edge case caught + fixed; CLI 1.5.0 published
-- 2026-05-12 — handoff-skill repo live; funnel-rewire task doc closed loop
+- 2026-04-18 — scope locked; decided to keep cart state in localStorage for now
+- 2026-04-20 — cart redesign shipped; address autocomplete added late in session
+- 2026-04-21 — Stripe Elements spike; confirmed 3DS flow works in test mode
+- 2026-04-22 — Braintree fully removed; webhook handler updated; Elements live in staging
 
 ## Files touched (cumulative)
-- prisma/schema.prisma — KitPurchase model
-- src/app/api/licenses/verify/route.ts — verification endpoint
-- src/app/api/licenses/recover/route.ts — recovery flow
+- src/components/Cart.tsx — multi-step redesign
+- src/components/CheckoutForm.tsx — replaced with Stripe Elements
+- src/lib/stripe.ts — PaymentIntent helpers
+- src/app/api/webhooks/stripe/route.ts — updated for new event shapes
 - (and so on)
 
 ## Decisions made (cumulative)
-- KitPurchase spans Stripe + LemonSqueezy in one table — minimizes migration risk
-- License key minted inline on Stripe webhook, not Promise.allSettled — OTO consumes immediately
-- Bundle SKU produces 2 rows (one csk_live_*, one LK-*) — separate concerns, both unique-indexed
+- Use Stripe Elements over Stripe Checkout hosted page — keeps us in the checkout flow, no redirect
+- Remove Braintree entirely rather than running both SDKs — reduces bundle size ~40 kB
+- Promo codes validated server-side only — prevents client-side manipulation
 
 ## Tech debt / known issues
-- [med] PDF visual restyle still on Reportlab
-- [low] admin funnel attribution mixes thanks→starter with email→starter
-- [low] no CHANGELOG on handoff-skill repo
+- [med] webhook handler has no retry logic for failed order inserts
+- [low] cart state still in localStorage — should move to server session before launch
+- [low] no integration tests for Elements form flow
 
 ## Gotchas
-- Stripe webhook signing requires the RAW request body — Next.js App Router default-strips this.
-- Infisical overrides local .env files in pnpm dev — check Infisical first when env vars misbehave.
-- Claude Code reserves /resume — third-party skills can't use it.
+- Stripe webhook verification requires the RAW request body — middleware that parses JSON first will break it.
+- Stripe test mode and live mode use different publishable key prefixes (pk_test_ vs pk_live_) — easy to ship the wrong one.
+- Elements `confirmPayment` redirects on 3DS; ensure your return_url handles the redirect correctly or the order never completes.
 ```
 
 ## Why two commands instead of one

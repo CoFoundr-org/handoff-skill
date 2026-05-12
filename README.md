@@ -6,9 +6,19 @@ Two Claude Code skills that fix the most common multi-session AI coding failure:
 - **`/cofoundr:handoff --archive`** — when the whole epic is shipped, moves the file to `docs/handoff/archived/`
 - **`/cofoundr:pickup`** — at the start of the next session, reads the latest handoff and briefs the agent on epic progress + what's next
 
-## Install (recommended): Claude Code plugin marketplace
+## Install (recommended): npx skills add
 
-From inside Claude Code:
+```bash
+npx skills add CoFoundr-org/handoff-skill
+```
+
+Installs both `/handoff` and `/pickup` as user-scope skills. Works in Claude Code, Cursor, Windsurf, and any agent that supports the skills standard.
+
+> **Why `/pickup` and not `/resume`?** Claude Code reserves bare `/resume` for session resumption. `/pickup` is the non-colliding alias.
+
+## Install (alternative): Claude Code plugin marketplace
+
+Installs as `/cofoundr:handoff` and `/cofoundr:pickup` (namespaced) with auto-updates:
 
 ```text
 /plugin marketplace add CoFoundr-org/handoff-skill
@@ -16,27 +26,15 @@ From inside Claude Code:
 /reload-plugins
 ```
 
-That's it. Type `/cofoundr:handoff` or `/cofoundr:pickup` to use the skills. They auto-update whenever this repo ships a new version.
-
 > Tab-completion works after `/cof…`, so you don't pay the namespace cost in keystrokes.
 
 ## Install (alternative): one-line curl
-
-If you'd rather have bare `/handoff` and `/pickup` (no namespace prefix), use the fallback installer:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CoFoundr-org/handoff-skill/main/install.sh | bash
 ```
 
-That writes two user-scope skills directly to `~/.claude/skills/handoff/` and `~/.claude/skills/pickup/`. For a single project only, pass `--local`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/CoFoundr-org/handoff-skill/main/install.sh | bash -s -- --local
-```
-
-No auto-updates on this path — re-run the script to pull the latest.
-
-> **Why `/pickup` and not `/resume`?** Claude Code reserves bare `/resume` for session resumption, so any third-party `/resume` would never reach the skill. `/pickup` is the non-colliding alias. The plugin install also uses `pickup` (as `/cofoundr:pickup`) for parity across install paths.
+Writes `/handoff` and `/pickup` directly to `~/.claude/skills/`. Pass `--local` for project-scoped installs. No auto-updates.
 
 ## Design principle
 
@@ -199,12 +197,15 @@ If you use the [CoFoundr Starter Kit](https://cofoundr.ai/starter), this skill i
 ## Repo layout
 
 ```
-.claude-plugin/marketplace.json       # marketplace catalog
+skills/
+  handoff/SKILL.md                    # /handoff  (npx skills add path)
+  pickup/SKILL.md                     # /pickup   (npx skills add path)
+.claude-plugin/marketplace.json       # Claude Code plugin marketplace catalog
 plugins/cofoundr/
   .claude-plugin/plugin.json          # plugin manifest
   skills/
-    handoff/SKILL.md                  # /cofoundr:handoff
-    pickup/SKILL.md                   # /cofoundr:pickup
+    handoff/SKILL.md                  # /cofoundr:handoff  (plugin path)
+    pickup/SKILL.md                   # /cofoundr:pickup   (plugin path)
 install.sh                            # curl|bash fallback
 LICENSE
 README.md
